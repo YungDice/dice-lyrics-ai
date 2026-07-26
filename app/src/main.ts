@@ -1,11 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 
 interface StyleProfile {
-  rhymeScheme: string;
-  cadence: string;
+  rhymeAndFlow: string;
+  vocabularyAndSlang: string;
+  themesAndImagery: string;
+  structureAndDelivery: string;
   themes: string[];
-  vocabulary: string;
-  structure: string;
   tone: string;
 }
 
@@ -18,20 +19,35 @@ interface Track {
   createdAt: string;
 }
 
+interface ProgressEvent {
+  stage: string;
+  stageIndex: number;
+  totalStages: number;
+  kind: "start" | "token" | "stage-done";
+  text: string;
+}
+
 type Language = "en" | "ru" | "de";
 
 let tracks: Track[] = [];
 let lastAnalyzedLyrics = "";
 let lastGenerateArgs: { trackIds: string[]; language: Language; topic: string } | null = null;
 
+// Analysis stages 0-3 stream into these textareas, in backend stage order.
+const ANALYSIS_STAGE_FIELDS = ["sp-rhyme-flow", "sp-vocab", "sp-themes-imagery", "sp-structure"];
+
+function el<T extends HTMLElement>(selector: string): T {
+  return document.querySelector(selector) as T;
+}
+
 // ---------- Navigation ----------
 
 function showScreen(name: string) {
-  document.querySelectorAll<HTMLElement>(".screen").forEach((el) => {
-    el.classList.toggle("active", el.id === `screen-${name}`);
+  document.querySelectorAll<HTMLElement>(".screen").forEach((e) => {
+    e.classList.toggle("active", e.id === `screen-${name}`);
   });
-  document.querySelectorAll<HTMLElement>(".navlink").forEach((el) => {
-    el.classList.toggle("active", el.dataset.screen === name);
+  document.querySelectorAll<HTMLElement>(".navlink").forEach((e) => {
+    e.classList.toggle("active", e.dataset.screen === name);
   });
   if (name === "library") {
     void refreshLibrary();
@@ -50,8 +66,8 @@ function setupNav() {
 // ---------- Ollama status ----------
 
 async function checkOllamaStatus() {
-  const pill = document.querySelector<HTMLElement>("#ollama-status")!;
-  const text = document.querySelector<HTMLElement>("#ollama-status-text")!;
+  const pill = el("#ollama-status");
+  const text = el("#ollama-status-text");
   try {
     const ok = await invoke<boolean>("check_ollama_status");
     pill.classList.toggle("ok", ok);
@@ -66,57 +82,82 @@ async function checkOllamaStatus() {
 // ---------- Analyze screen ----------
 
 function showAnalyzeError(message: string | null) {
-  const el = document.querySelector<HTMLElement>("#analyze-error")!;
+  const e = el("#analyze-error");
   if (message) {
-    el.textContent = message;
-    el.hidden = false;
+    e.textContent = message;
+    e.hidden = false;
   } else {
-    el.hidden = true;
+    e.hidden = true;
+  }
+}
+
+function onAnalysisProgress(ev: ProgressEvent) {
+  const stageLabel = el("#analyze-stage");
+  stageLabel.hidden = false;
+  stageLabel.textContent = `Analyzing (${ev.stageIndex + 1}/${ev.totalStages}): ${ev.stage}…`;
+
+  const fieldId = ANALYSIS_STAGE_FIELDS[ev.stageIndex];
+  if (!fieldId) return; // summary stage has no streaming field
+  const area = el<HTMLTextAreaElement>(`#${fieldId}`);
+  if (ev.kind === "start") {
+    el("#analyze-result").hidden = false;
+    area.value = "";
+  } else if (ev.kind === "token") {
+    area.value += ev.text;
+    area.scrollTop = area.scrollHeight;
+  } else if (ev.kind === "stage-done") {
+    area.value = ev.text;
   }
 }
 
 function fillStyleProfileForm(profile: StyleProfile) {
-  (document.querySelector("#sp-rhyme") as HTMLTextAreaElement).value = profile.rhymeScheme;
-  (document.querySelector("#sp-cadence") as HTMLTextAreaElement).value = profile.cadence;
-  (document.querySelector("#sp-themes") as HTMLInputElement).value = profile.themes.join(", ");
-  (document.querySelector("#sp-tone") as HTMLInputElement).value = profile.tone;
-  (document.querySelector("#sp-vocabulary") as HTMLTextAreaElement).value = profile.vocabulary;
-  (document.querySelector("#sp-structure") as HTMLTextAreaElement).value = profile.structure;
-  document.querySelector<HTMLElement>("#analyze-result")!.hidden = false;
+  el<HTMLTextAreaElement>("#sp-rhyme-flow").value = profile.rhymeAndFlow;
+  el<HTMLTextAreaElement>("#sp-vocab").value = profile.vocabularyAndSlang;
+  el<HTMLTextAreaElement>("#sp-themes-imagery").value = profile.themesAndImagery;
+  el<HTMLTextAreaElement>("#sp-structure").value = profile.structureAndDelivery;
+  el<HTMLInputElement>("#sp-themes").value = profile.themes.join(", ");
+  el<HTMLInputElement>("#sp-tone").value = profile.tone;
+  el("#analyze-result").hidden = false;
 }
 
 function readStyleProfileForm(): StyleProfile {
   return {
-    rhymeScheme: (document.querySelector("#sp-rhyme") as HTMLTextAreaElement).value,
-    cadence: (document.querySelector("#sp-cadence") as HTMLTextAreaElement).value,
-    themes: (document.querySelector("#sp-themes") as HTMLInputElement).value
+    rhymeAndFlow: el<HTMLTextAreaElement>("#sp-rhyme-flow").value,
+    vocabularyAndSlang: el<HTMLTextAreaElement>("#sp-vocab").value,
+    themesAndImagery: el<HTMLTextAreaElement>("#sp-themes-imagery").value,
+    structureAndDelivery: el<HTMLTextAreaElement>("#sp-structure").value,
+    themes: el<HTMLInputElement>("#sp-themes").value
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean),
-    vocabulary: (document.querySelector("#sp-vocabulary") as HTMLTextAreaElement).value,
-    structure: (document.querySelector("#sp-structure") as HTMLTextAreaElement).value,
-    tone: (document.querySelector("#sp-tone") as HTMLInputElement).value,
+    tone: el<HTMLInputElement>("#sp-tone").value,
   };
 }
 
 async function handleAnalyze() {
-  const lyrics = (document.querySelector("#analyze-lyrics") as HTMLTextAreaElement).value;
+  const lyrics = el<HTMLTextAreaElement>("#analyze-lyrics").value;
   showAnalyzeError(null);
   if (!lyrics.trim()) {
     showAnalyzeError("Paste some lyrics first.");
     return;
   }
-  const btn = document.querySelector<HTMLButtonElement>("#analyze-btn")!;
-  const spinner = document.querySelector<HTMLElement>("#analyze-spinner")!;
+  const btn = el<HTMLButtonElement>("#analyze-btn");
+  const spinner = el("#analyze-spinner");
   btn.disabled = true;
   spinner.hidden = false;
-  document.querySelector<HTMLElement>("#analyze-result")!.hidden = true;
+  for (const id of ANALYSIS_STAGE_FIELDS) {
+    el<HTMLTextAreaElement>(`#${id}`).value = "";
+  }
+  el<HTMLInputElement>("#sp-themes").value = "";
+  el<HTMLInputElement>("#sp-tone").value = "";
   try {
     const profile = await invoke<StyleProfile>("analyze_lyrics", { lyrics });
     lastAnalyzedLyrics = lyrics;
     fillStyleProfileForm(profile);
+    el("#analyze-stage").textContent = "Analysis complete — review and edit below, then save.";
   } catch (err) {
     showAnalyzeError(String(err));
+    el("#analyze-stage").hidden = true;
   } finally {
     btn.disabled = false;
     spinner.hidden = true;
@@ -124,8 +165,8 @@ async function handleAnalyze() {
 }
 
 async function handleSaveTrack() {
-  const title = (document.querySelector("#analyze-title") as HTMLInputElement).value || "Untitled";
-  const artist = (document.querySelector("#analyze-artist") as HTMLInputElement).value || "Unknown";
+  const title = el<HTMLInputElement>("#analyze-title").value || "Untitled";
+  const artist = el<HTMLInputElement>("#analyze-artist").value || "Unknown";
   const styleProfile = readStyleProfileForm();
   try {
     await invoke<Track>("save_track", {
@@ -135,10 +176,11 @@ async function handleSaveTrack() {
       styleProfile,
     });
     showAnalyzeError(null);
-    (document.querySelector("#analyze-title") as HTMLInputElement).value = "";
-    (document.querySelector("#analyze-artist") as HTMLInputElement).value = "";
-    (document.querySelector("#analyze-lyrics") as HTMLTextAreaElement).value = "";
-    document.querySelector<HTMLElement>("#analyze-result")!.hidden = true;
+    el<HTMLInputElement>("#analyze-title").value = "";
+    el<HTMLInputElement>("#analyze-artist").value = "";
+    el<HTMLTextAreaElement>("#analyze-lyrics").value = "";
+    el("#analyze-result").hidden = true;
+    el("#analyze-stage").hidden = true;
     showScreen("library");
   } catch (err) {
     showAnalyzeError(String(err));
@@ -148,7 +190,7 @@ async function handleSaveTrack() {
 // ---------- Library screen ----------
 
 async function refreshLibrary() {
-  const container = document.querySelector<HTMLElement>("#library-list")!;
+  const container = el("#library-list");
   try {
     tracks = await invoke<Track[]>("list_tracks");
     renderLibrary();
@@ -158,8 +200,8 @@ async function refreshLibrary() {
 }
 
 function renderLibrary() {
-  const container = document.querySelector<HTMLElement>("#library-list")!;
-  const query = (document.querySelector("#library-search") as HTMLInputElement).value.toLowerCase();
+  const container = el("#library-list");
+  const query = el<HTMLInputElement>("#library-search").value.toLowerCase();
   const filtered = tracks.filter(
     (t) => t.title.toLowerCase().includes(query) || t.artist.toLowerCase().includes(query)
   );
@@ -203,7 +245,7 @@ function escapeHtml(s: string): string {
 // ---------- Generate screen ----------
 
 async function refreshReferenceList() {
-  const container = document.querySelector<HTMLElement>("#generate-ref-list")!;
+  const container = el("#generate-ref-list");
   try {
     tracks = await invoke<Track[]>("list_tracks");
   } catch (err) {
@@ -227,18 +269,34 @@ async function refreshReferenceList() {
 }
 
 function showGenerateError(message: string | null) {
-  const el = document.querySelector<HTMLElement>("#generate-error")!;
+  const e = el("#generate-error");
   if (message) {
-    el.textContent = message;
-    el.hidden = false;
+    e.textContent = message;
+    e.hidden = false;
   } else {
-    el.hidden = true;
+    e.hidden = true;
+  }
+}
+
+function onGenerationProgress(ev: ProgressEvent) {
+  const stageLabel = el("#generate-stage");
+  stageLabel.hidden = false;
+  stageLabel.textContent = `${ev.stage} (${ev.stageIndex + 1}/${ev.totalStages})…`;
+
+  const output = el("#generate-output");
+  if (ev.kind === "start") {
+    el("#generate-output-wrap").hidden = false;
+    output.textContent = "";
+  } else if (ev.kind === "token") {
+    output.textContent += ev.text;
+  } else if (ev.kind === "stage-done") {
+    output.textContent = ev.text;
   }
 }
 
 async function runGenerate(trackIds: string[], language: Language, topic: string) {
-  const btn = document.querySelector<HTMLButtonElement>("#generate-btn")!;
-  const spinner = document.querySelector<HTMLElement>("#generate-spinner")!;
+  const btn = el<HTMLButtonElement>("#generate-btn");
+  const spinner = el("#generate-spinner");
   btn.disabled = true;
   spinner.hidden = false;
   showGenerateError(null);
@@ -249,11 +307,12 @@ async function runGenerate(trackIds: string[], language: Language, topic: string
       topic: topic || null,
     });
     lastGenerateArgs = { trackIds, language, topic };
-    const outputWrap = document.querySelector<HTMLElement>("#generate-output-wrap")!;
-    document.querySelector<HTMLElement>("#generate-output")!.textContent = lyrics;
-    outputWrap.hidden = false;
+    el("#generate-output").textContent = lyrics;
+    el("#generate-output-wrap").hidden = false;
+    el("#generate-stage").textContent = "Done.";
   } catch (err) {
     showGenerateError(String(err));
+    el("#generate-stage").hidden = true;
   } finally {
     btn.disabled = false;
     spinner.hidden = true;
@@ -263,14 +322,14 @@ async function runGenerate(trackIds: string[], language: Language, topic: string
 async function handleGenerate() {
   const trackIds = Array.from(
     document.querySelectorAll<HTMLInputElement>("#generate-ref-list input:checked")
-  ).map((el) => el.value);
+  ).map((e) => e.value);
   if (trackIds.length === 0) {
     showGenerateError("Select at least one reference track.");
     return;
   }
   const language = (document.querySelector("input[name=language]:checked") as HTMLInputElement)
     .value as Language;
-  const topic = (document.querySelector("#generate-topic") as HTMLInputElement).value;
+  const topic = el<HTMLInputElement>("#generate-topic").value;
   await runGenerate(trackIds, language, topic);
 }
 
@@ -280,13 +339,13 @@ async function handleRegenerate() {
 }
 
 async function handleCopy() {
-  const text = document.querySelector<HTMLElement>("#generate-output")!.textContent ?? "";
+  const text = el("#generate-output").textContent ?? "";
   await navigator.clipboard.writeText(text);
 }
 
 async function handleSaveGeneration() {
   if (!lastGenerateArgs) return;
-  const lyrics = document.querySelector<HTMLElement>("#generate-output")!.textContent ?? "";
+  const lyrics = el("#generate-output").textContent ?? "";
   await invoke("save_generation", {
     trackIds: lastGenerateArgs.trackIds,
     language: lastGenerateArgs.language,
@@ -302,13 +361,14 @@ window.addEventListener("DOMContentLoaded", () => {
   void checkOllamaStatus();
   setInterval(checkOllamaStatus, 15000);
 
-  document.querySelector("#analyze-btn")!.addEventListener("click", () => void handleAnalyze());
-  document.querySelector("#save-track-btn")!.addEventListener("click", () => void handleSaveTrack());
-  document.querySelector("#library-search")!.addEventListener("input", () => renderLibrary());
-  document.querySelector("#generate-btn")!.addEventListener("click", () => void handleGenerate());
-  document.querySelector("#regenerate-btn")!.addEventListener("click", () => void handleRegenerate());
-  document.querySelector("#copy-btn")!.addEventListener("click", () => void handleCopy());
-  document
-    .querySelector("#save-generation-btn")!
-    .addEventListener("click", () => void handleSaveGeneration());
+  void listen<ProgressEvent>("analysis-progress", (e) => onAnalysisProgress(e.payload));
+  void listen<ProgressEvent>("generation-progress", (e) => onGenerationProgress(e.payload));
+
+  el("#analyze-btn").addEventListener("click", () => void handleAnalyze());
+  el("#save-track-btn").addEventListener("click", () => void handleSaveTrack());
+  el("#library-search").addEventListener("input", () => renderLibrary());
+  el("#generate-btn").addEventListener("click", () => void handleGenerate());
+  el("#regenerate-btn").addEventListener("click", () => void handleRegenerate());
+  el("#copy-btn").addEventListener("click", () => void handleCopy());
+  el("#save-generation-btn").addEventListener("click", () => void handleSaveGeneration());
 });

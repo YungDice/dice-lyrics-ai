@@ -49,33 +49,34 @@
         <div class="button-row">
           <button id="analyze-btn" class="pill primary">Analyze</button>
           <span id="analyze-spinner" class="spinner" hidden></span>
+          <span id="analyze-stage" class="stage-label" hidden></span>
         </div>
 
         <div id="analyze-result" hidden>
           <div class="style-profile-grid">
             <div class="field span-2">
-              <label for="sp-rhyme">Rhyme scheme</label>
-              <textarea id="sp-rhyme" class="small"></textarea>
+              <label for="sp-rhyme-flow">Rhyme &amp; flow</label>
+              <textarea id="sp-rhyme-flow" class="tall"></textarea>
             </div>
             <div class="field span-2">
-              <label for="sp-cadence">Cadence / flow</label>
-              <textarea id="sp-cadence" class="small"></textarea>
+              <label for="sp-vocab">Vocabulary, slang &amp; ad-libs</label>
+              <textarea id="sp-vocab" class="tall"></textarea>
+            </div>
+            <div class="field span-2">
+              <label for="sp-themes-imagery">Themes, imagery &amp; wordplay</label>
+              <textarea id="sp-themes-imagery" class="tall"></textarea>
+            </div>
+            <div class="field span-2">
+              <label for="sp-structure">Structure &amp; delivery</label>
+              <textarea id="sp-structure" class="tall"></textarea>
             </div>
             <div class="field">
-              <label for="sp-themes">Themes (comma-separated)</label>
+              <label for="sp-themes">Theme tags (comma-separated)</label>
               <input type="text" id="sp-themes" />
             </div>
             <div class="field">
-              <label for="sp-tone">Tone</label>
+              <label for="sp-tone">Tone summary</label>
               <input type="text" id="sp-tone" />
-            </div>
-            <div class="field span-2">
-              <label for="sp-vocabulary">Vocabulary / slang register</label>
-              <textarea id="sp-vocabulary" class="small"></textarea>
-            </div>
-            <div class="field span-2">
-              <label for="sp-structure">Structure</label>
-              <textarea id="sp-structure" class="small"></textarea>
             </div>
           </div>
           <div class="button-row">
@@ -134,6 +135,7 @@
         <div class="button-row">
           <button id="generate-btn" class="pill primary">Generate</button>
           <span id="generate-spinner" class="spinner" hidden></span>
+          <span id="generate-stage" class="stage-label" hidden></span>
         </div>
 
         <div id="generate-output-wrap" hidden>

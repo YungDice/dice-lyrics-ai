@@ -188,6 +188,17 @@ textarea.small {
   min-height: 100px;
 }
 
+textarea.tall {
+  min-height: 180px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.stage-label {
+  font-size: 13px;
+  color: var(--color-felt-gray);
+}
+
 input:focus,
 select:focus,
 textarea:focus {

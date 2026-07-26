@@ -1,13 +1,22 @@
 use serde::{Deserialize, Serialize};
 
+/// Four deep, evidence-quoting analysis sections plus short tags for the
+/// library card. All fields default so tracks saved by older versions still
+/// load (their deep sections will just be empty until re-analyzed).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StyleProfile {
-    pub rhyme_scheme: String,
-    pub cadence: String,
+    #[serde(default)]
+    pub rhyme_and_flow: String,
+    #[serde(default)]
+    pub vocabulary_and_slang: String,
+    #[serde(default)]
+    pub themes_and_imagery: String,
+    #[serde(default)]
+    pub structure_and_delivery: String,
+    #[serde(default)]
     pub themes: Vec<String>,
-    pub vocabulary: String,
-    pub structure: String,
+    #[serde(default)]
     pub tone: String,
 }
 
