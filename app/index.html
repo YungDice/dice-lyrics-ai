@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="/src/styles.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dice Lyrics AI</title>
+    <script type="module" src="/src/main.ts" defer></script>
+  </head>
+
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <div class="topbar__brand">dice lyrics ai</div>
+        <nav class="topbar__nav">
+          <button class="navlink active" data-screen="analyze">Analyze</button>
+          <button class="navlink" data-screen="library">Library</button>
+          <button class="navlink" data-screen="generate">Generate</button>
+        </nav>
+        <div id="ollama-status" class="status-pill">
+          <span class="status-dot"></span>
+          <span id="ollama-status-text">Checking Ollama…</span>
+        </div>
+      </header>
+
+      <!-- Analyze screen -->
+      <section id="screen-analyze" class="screen active">
+        <h2>Analyze</h2>
+        <p class="screen__subtitle">Paste a song's lyrics to extract its style profile.</p>
+
+        <div id="analyze-error" class="error-banner" hidden></div>
+
+        <div class="field-row">
+          <div class="field">
+            <label for="analyze-title">Title (optional)</label>
+            <input type="text" id="analyze-title" placeholder="Song title" />
+          </div>
+          <div class="field">
+            <label for="analyze-artist">Artist (optional)</label>
+            <input type="text" id="analyze-artist" placeholder="Artist name" />
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="analyze-lyrics">Lyrics</label>
+          <textarea id="analyze-lyrics" placeholder="Paste lyrics here..."></textarea>
+        </div>
+
+        <div class="button-row">
+          <button id="analyze-btn" class="pill primary">Analyze</button>
+          <span id="analyze-spinner" class="spinner" hidden></span>
+        </div>
+
+        <div id="analyze-result" hidden>
+          <div class="style-profile-grid">
+            <div class="field span-2">
+              <label for="sp-rhyme">Rhyme scheme</label>
+              <textarea id="sp-rhyme" class="small"></textarea>
+            </div>
+            <div class="field span-2">
+              <label for="sp-cadence">Cadence / flow</label>
+              <textarea id="sp-cadence" class="small"></textarea>
+            </div>
+            <div class="field">
+              <label for="sp-themes">Themes (comma-separated)</label>
+              <input type="text" id="sp-themes" />
+            </div>
+            <div class="field">
+              <label for="sp-tone">Tone</label>
+              <input type="text" id="sp-tone" />
+            </div>
+            <div class="field span-2">
+              <label for="sp-vocabulary">Vocabulary / slang register</label>
+              <textarea id="sp-vocabulary" class="small"></textarea>
+            </div>
+            <div class="field span-2">
+              <label for="sp-structure">Structure</label>
+              <textarea id="sp-structure" class="small"></textarea>
+            </div>
+          </div>
+          <div class="button-row">
+            <button id="save-track-btn" class="pill primary">Save to Library</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Library screen -->
+      <section id="screen-library" class="screen">
+        <h2>Library</h2>
+        <p class="screen__subtitle">Every song you've analyzed.</p>
+
+        <div class="field">
+          <input type="text" id="library-search" placeholder="Search by title or artist..." />
+        </div>
+
+        <div id="library-list"></div>
+      </section>
+
+      <!-- Generate screen -->
+      <section id="screen-generate" class="screen">
+        <h2>Generate</h2>
+        <p class="screen__subtitle">Pick reference songs and a language, then write something new.</p>
+
+        <div id="generate-error" class="error-banner" hidden></div>
+
+        <div class="field">
+          <label>Reference tracks</label>
+          <div id="generate-ref-list" class="ref-list"></div>
+        </div>
+
+        <div class="field">
+          <label>Language</label>
+          <div class="language-row">
+            <div class="language-option">
+              <input type="radio" name="language" id="lang-en" value="en" checked />
+              <label for="lang-en">English</label>
+            </div>
+            <div class="language-option">
+              <input type="radio" name="language" id="lang-ru" value="ru" />
+              <label for="lang-ru">Russian</label>
+            </div>
+            <div class="language-option">
+              <input type="radio" name="language" id="lang-de" value="de" />
+              <label for="lang-de">German</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="generate-topic">Topic (optional)</label>
+          <input type="text" id="generate-topic" placeholder="e.g. a late night drive" />
+        </div>
+
+        <div class="button-row">
+          <button id="generate-btn" class="pill primary">Generate</button>
+          <span id="generate-spinner" class="spinner" hidden></span>
+        </div>
+
+        <div id="generate-output-wrap" hidden>
+          <div id="generate-output" class="output-box"></div>
+          <div class="button-row">
+            <button id="regenerate-btn" class="pill small">Regenerate</button>
+            <button id="copy-btn" class="pill small">Copy</button>
+            <button id="save-generation-btn" class="pill small">Save</button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </body>
+</html>
